@@ -3,11 +3,19 @@ import requests
 import pandas as pd
 import json
 from io import StringIO
+import os
 
 # ================= CONFIG =================
-FASTAPI_URL = "http://127.0.0.1:8000"
+# 🔥 Smart backend URL handling (LOCAL + CLOUD)
+if "BACKEND_URL" in st.secrets:
+    FASTAPI_URL = st.secrets["BACKEND_URL"]
+else:
+    FASTAPI_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="AI-Powered Data Cleaning", layout="wide")
+
+# Debug (optional)
+st.sidebar.write(f"🔗 Backend: {FASTAPI_URL}")
 
 # ================= SIDEBAR =================
 st.sidebar.header("📊 Data Source Selection")
@@ -36,29 +44,38 @@ if data_source == "CSV/Excel":
     )
 
     if uploaded_file is not None:
-        file_ext = uploaded_file.name.split(".")[-1]
+        try:
+            file_ext = uploaded_file.name.split(".")[-1]
 
-        if file_ext == "csv":
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
+            if file_ext == "csv":
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
 
-        st.write("### 🔍 Raw Data Preview")
-        st.dataframe(df)
+            st.write("### 🔍 Raw Data Preview")
+            st.dataframe(df)
+
+        except Exception as e:
+            st.error(f"❌ Error reading file: {e}")
+            st.stop()
 
         if st.button("🚀 Clean Data"):
-            files = {
-                "file": (uploaded_file.name, uploaded_file.getvalue())
-            }
+            try:
+                files = {
+                    "file": (uploaded_file.name, uploaded_file.getvalue())
+                }
 
-            response = requests.post(f"{FASTAPI_URL}/clean-data", files=files)
+                response = requests.post(
+                    f"{FASTAPI_URL}/clean-data",
+                    files=files,
+                    timeout=120
+                )
 
-            if response.status_code == 200:
-                st.subheader("🧪 Raw API Response")
-                st.json(response.json())
+                if response.status_code == 200:
+                    st.subheader("🧪 Raw API Response")
+                    st.json(response.json())
 
-                try:
-                    cleaned_data_raw = response.json()["cleaned_data"]
+                    cleaned_data_raw = response.json().get("cleaned_data", [])
 
                     if isinstance(cleaned_data_raw, str):
                         cleaned_data = pd.DataFrame(json.loads(cleaned_data_raw))
@@ -68,10 +85,11 @@ if data_source == "CSV/Excel":
                     st.subheader("✅ Cleaned Data")
                     st.dataframe(cleaned_data)
 
-                except Exception as e:
-                    st.error(f"❌ Error converting response: {e}")
-            else:
-                st.error("❌ Failed to clean data")
+                else:
+                    st.error(f"❌ API Error: {response.text}")
+
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ Connection Error: {e}")
 
 
 # =========================================================
@@ -91,17 +109,18 @@ elif data_source == "Database Query":
     )
 
     if st.button("🚀 Fetch & Clean Data"):
-        response = requests.post(
-            f"{FASTAPI_URL}/clean-db",
-            json={"db_url": db_url, "query": query}
-        )
+        try:
+            response = requests.post(
+                f"{FASTAPI_URL}/clean-db",
+                json={"db_url": db_url, "query": query},
+                timeout=120
+            )
 
-        if response.status_code == 200:
-            st.subheader("🧪 Raw API Response")
-            st.json(response.json())
+            if response.status_code == 200:
+                st.subheader("🧪 Raw API Response")
+                st.json(response.json())
 
-            try:
-                cleaned_data_raw = response.json()["cleaned_data"]
+                cleaned_data_raw = response.json().get("cleaned_data", [])
 
                 if isinstance(cleaned_data_raw, str):
                     cleaned_data = pd.DataFrame(json.loads(cleaned_data_raw))
@@ -111,10 +130,11 @@ elif data_source == "Database Query":
                 st.subheader("✅ Cleaned Data")
                 st.dataframe(cleaned_data)
 
-            except Exception as e:
-                st.error(f"❌ Error converting response: {e}")
-        else:
-            st.error("❌ Failed to fetch/clean database data")
+            else:
+                st.error(f"❌ API Error: {response.text}")
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ Connection Error: {e}")
 
 
 # =========================================================
@@ -129,17 +149,18 @@ elif data_source == "API Data":
     )
 
     if st.button("🚀 Fetch & Clean Data"):
-        response = requests.post(
-            f"{FASTAPI_URL}/clean-api",
-            json={"api_url": api_url}
-        )
+        try:
+            response = requests.post(
+                f"{FASTAPI_URL}/clean-api",
+                json={"api_url": api_url},
+                timeout=120
+            )
 
-        if response.status_code == 200:
-            st.subheader("🧪 Raw API Response")
-            st.json(response.json())
+            if response.status_code == 200:
+                st.subheader("🧪 Raw API Response")
+                st.json(response.json())
 
-            try:
-                cleaned_data_raw = response.json()["cleaned_data"]
+                cleaned_data_raw = response.json().get("cleaned_data", [])
 
                 if isinstance(cleaned_data_raw, str):
                     cleaned_data = pd.DataFrame(json.loads(cleaned_data_raw))
@@ -149,10 +170,11 @@ elif data_source == "API Data":
                 st.subheader("✅ Cleaned Data")
                 st.dataframe(cleaned_data)
 
-            except Exception as e:
-                st.error(f"❌ Error converting response: {e}")
-        else:
-            st.error("❌ Failed to fetch/clean API data")
+            else:
+                st.error(f"❌ API Error: {response.text}")
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ Connection Error: {e}")
 
 
 # =========================================================
